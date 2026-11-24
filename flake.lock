@@ -23,11 +23,11 @@
     "modular-skills": {
       "flake": false,
       "locked": {
-        "lastModified": 1794603659,
-        "narHash": "sha256-vrGczCYr/v0XdcYcJweV+Cp19CjPyBUGjuOrNIHtkD8=",
+        "lastModified": 1795247765,
+        "narHash": "sha256-+hgkGk8FkSscxXSxFzes71duIqDxHLwaG5EorXkiwq0=",
         "owner": "modular",
         "repo": "skills",
-        "rev": "d6000ab8766edeffc273b2d73efe7701397ecd8b",
+        "rev": "2c12f44ddef20b98e19a5ba06cacdf02f2436ce1",
         "type": "github"
       },
       "original": {

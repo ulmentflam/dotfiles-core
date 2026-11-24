@@ -1,13 +1,14 @@
 {
   "modular-skills": {
-    "rev": "d6000ab8766edeffc273b2d73efe7701397ecd8b",
-    "narHash": "sha256-vrGczCYr/v0XdcYcJweV+Cp19CjPyBUGjuOrNIHtkD8=",
-    "url": "github:modular/skills/d6000ab8766edeffc273b2d73efe7701397ecd8b",
+    "rev": "2c12f44ddef20b98e19a5ba06cacdf02f2436ce1",
+    "narHash": "sha256-+hgkGk8FkSscxXSxFzes71duIqDxHLwaG5EorXkiwq0=",
+    "url": "github:modular/skills/2c12f44ddef20b98e19a5ba06cacdf02f2436ce1",
     "verdict": "pass",
-    "reviewedAt": "2026-11-14T14:34Z",
+    "reviewedAt": "2026-11-24T04:31Z",
     "reviewer": "claude --safe-mode (opus)",
     "findings": {
-      "info": 7
+      "info": 7,
+      "medium": 1
     }
   },
   "superpowers": {
