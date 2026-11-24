@@ -17,6 +17,9 @@ rec {
   packages = import ./packages.nix;
   aiFiles = import ./ai-files.nix;
   programs = import ./programs.nix;
+  # MacShot Offline's shortcuts, CleanShot X's names and folder, as shell
+  # lines: macshot.preferences { homeDirectory = ...; }.
+  macshot = import ./macshot.nix { inherit (nixpkgs) lib; };
 
   # Path values, not strings: Home Manager then copies only these directories
   # into the store, content-addressed, rather than referencing the whole

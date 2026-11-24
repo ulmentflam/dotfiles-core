@@ -64,3 +64,13 @@ grep -q -- "-dict-add 30 '<dict><key>enabled</key><false/>.*<integer>52</integer
 grep -q 'activateSettings -u' <<<"$out" || fail "the shortcut change is not reloaded"
 grep -qx 'macshot-without-cask=off' <<<"$out" || fail "MacShot preferences written without the macshot-offline cask"
 echo "ok: MacShot Offline takes Command-Shift-3 and Command-Shift-4 from macOS"
+
+# lib.macshot.preferences, the form a login script uses: no Home Manager
+# `run`, the folder under the given home.
+lib_out=$(eval_raw 'f.lib.macshot.preferences { homeDirectory = "/Users/example"; }') \
+  || fail "lib.macshot.preferences did not evaluate"
+grep -q "want=/Users/example/Desktop/screenshots" <<<"$lib_out" || fail "lib.macshot.preferences ignores homeDirectory"
+grep -q "^/usr/bin/defaults write com.sw33tlie.macshot.offline filenameTemplate -string 'Screenshot {window} - {app} " <<<"$lib_out" \
+  || fail "lib.macshot.preferences does not write CleanShot X's names"
+! grep -q '^ *run ' <<<"$lib_out" || fail "lib.macshot.preferences adds Home Manager's run without a prefix"
+echo "ok: lib.macshot.preferences renders for a login script"

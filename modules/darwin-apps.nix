@@ -57,7 +57,7 @@ let
     ++ [ "" ]
   );
 
-  macshotDomain = "com.sw33tlie.macshot.offline";
+  macshot = import ../lib/macshot.nix { inherit lib; };
   # symbolichotkeys ID -> the parameters macOS stores: ASCII code, virtual key
   # code, modifier mask (Command-Shift in the NSEvent form, 1179648).
   macshotSystemHotkeys = {
@@ -102,7 +102,7 @@ in
       };
       directory = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
-        default = "Desktop/screenshots";
+        default = macshot.defaultDirectory;
         description = ''
           Save folder, relative to the home directory (CleanShot X's export
           path by default); null leaves MacShot's own choice alone. MacShot is
@@ -113,19 +113,8 @@ in
       };
       filenames = lib.mkOption {
         type = lib.types.attrsOf lib.types.str;
-        default = {
-          # CleanShot X's "Screenshot %t - %a %y-%m-%d at %H.%M.%S" with its
-          # @2x Retina suffix. MacShot saves at full Retina resolution
-          # (downscaleRetina off), but cannot tell a 1x display apart, so a
-          # capture there is labelled @2x too.
-          filenameTemplate = "Screenshot {window} - {app} {yyyy}-{MM}-{dd} at {HH}.{mm}.{ss}@2x";
-          # Used instead when no app is known (a whole-display capture), the
-          # way CleanShot drops " - %a".
-          filenameTemplateNoApp = "Screenshot {window} {yyyy}-{MM}-{dd} at {HH}.{mm}.{ss}@2x";
-          # Recordings carry no window title, and CleanShot adds no @2x to them.
-          recordingFilenameTemplate = "Screenshot {app} {yyyy}-{MM}-{dd} at {HH}.{mm}.{ss}";
-          recordingFilenameTemplateNoApp = "Screenshot {yyyy}-{MM}-{dd} at {HH}.{mm}.{ss}";
-        };
+        default = macshot.defaultFilenames;
+        defaultText = lib.literalMD "CleanShot X's names, see `lib/macshot.nix`";
         description = ''
           MacShot's file-name templates, by preference key ({window}, {app},
           {yyyy} {MM} {dd} {HH} {mm} {ss} and others; a / starts a subfolder).
@@ -196,38 +185,11 @@ in
       })
       (lib.mkIf cfg.macshot.enable {
         home.activation.macshotPreferences = lib.hm.dag.entryAfter [ "writeBoundary" ] (
-          ''
-            # Carbon virtual key codes (kVK_ANSI_4 = 21, kVK_ANSI_3 = 20) and
-            # modifiers (cmdKey | shiftKey = 768), the form MacShot's
-            # HotkeyManager reads. Clearing hotkeyDisabled_<slot> undoes a
-            # "None" chosen in its settings.
-            run /usr/bin/defaults write ${macshotDomain} hotkeyKeyCode -int 21
-            run /usr/bin/defaults write ${macshotDomain} hotkeyModifiers -int 768
-            run /usr/bin/defaults write ${macshotDomain} hotkeyFullScreenKeyCode -int 20
-            run /usr/bin/defaults write ${macshotDomain} hotkeyFullScreenModifiers -int 768
-            run /usr/bin/defaults delete ${macshotDomain} hotkeyDisabled_1 2>/dev/null || true
-            run /usr/bin/defaults delete ${macshotDomain} hotkeyDisabled_2 2>/dev/null || true
-
-            ${lib.concatStringsSep "\n" (
-              lib.mapAttrsToList (
-                key: template:
-                "run /usr/bin/defaults write ${macshotDomain} ${key} -string ${lib.escapeShellArg template}"
-              ) cfg.macshot.filenames
-            )}
-          ''
-          + lib.optionalString (cfg.macshot.directory != null) ''
-
-            # The folder, as the path MacShot shows and offers in its folder
-            # panel. Its saves go through a security-scoped bookmark only the
-            # app can create, so when the path changes, drop a bookmark for
-            # the old folder: MacShot then asks once, starting here.
-            want=${lib.escapeShellArg "${config.home.homeDirectory}/${cfg.macshot.directory}"}
-            run mkdir -p "$want"
-            if [ "$(/usr/bin/defaults read ${macshotDomain} saveDirectory 2>/dev/null)" != "$want" ]; then
-              run /usr/bin/defaults write ${macshotDomain} saveDirectory -string "$want"
-              run /usr/bin/defaults delete ${macshotDomain} saveDirectoryBookmark 2>/dev/null || true
-            fi
-          ''
+          macshot.preferences {
+            inherit (config.home) homeDirectory;
+            inherit (cfg.macshot) directory filenames;
+            prefix = "run ";
+          }
           + lib.optionalString cfg.macshot.replaceSystemShortcuts ''
 
             # com.apple.symbolichotkeys 28 (Command-Shift-3, save the screen)
