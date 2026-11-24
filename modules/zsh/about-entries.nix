@@ -15,7 +15,7 @@
   "edit|awsconfig|open ~/.aws/config in $EDITOR"
   "edit|gitconfig|open ${gitConfigFile} in $EDITOR"
   "edit|tool-versions|open ~/.tool-versions in $EDITOR"
-  "nix|nb|nix run .#build (build only, no activation)"
+  "nix|nb|build ${flakeDir} without activating, from any directory (nix run .#build)"
   "nix|nbs|FN: build-switch + mise upgrade + commit + push (most common)"
   "nix|nbu|FN: update churny flake inputs, commit, build"
   "nix|nfa|update all flake inputs + commit flake.lock"

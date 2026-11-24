@@ -25,7 +25,11 @@ in
   tool-versions = "$EDITOR ~/.tool-versions";
   upgrade = "mise upgrade";
   nix-config = "cd ${flakeDir}";
-  nb = "nix run .#build";
+  # Works from any directory. A system flake's build app resolves `.#` and
+  # `./result` against the working directory, so run it from the flake
+  # directory, in a subshell that leaves the caller's directory alone. The
+  # anonymous function receives `nb`'s arguments: nb --show-trace.
+  nb = ''() { (cd ${flakeDir} && nix run .#build -- "$@") }'';
   nc = "cd ${flakeDir}";
   nfu = "nix flake update ${churny} --flake ${flakeDir} && git -C ${flakeDir} commit flake.lock -m 'flake.lock'";
   nfa = "nix flake update --flake ${flakeDir} && git -C ${flakeDir} commit flake.lock -m 'flake.lock'";

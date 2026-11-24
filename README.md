@@ -26,7 +26,7 @@ Your flake holds what is yours: `home.nix`, `.tool-versions`, and its `flake.loc
 | Command | What it does |
 |---------|--------------|
 | `nbs` | Switch, apply the Brewfile, upgrade mise and commit `.tool-versions`, push if the checkout has an upstream |
-| `nb` | Build without switching (`nix run .#build`) |
+| `nb` | Build without switching (`nix run .#build`), from any directory; arguments go to `nix build` |
 | `nfu` / `nfa` | Update the churny inputs / every input, commit `flake.lock` |
 | `about` | List every alias and function |
 | `nix run .#touchid-sudo` | macOS, once: Touch ID for `sudo`, with `pam_reattach` so it works in tmux. Leaves an existing Touch ID setup alone; `--check` only reports |
