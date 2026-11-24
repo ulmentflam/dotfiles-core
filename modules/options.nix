@@ -91,10 +91,11 @@ in
 
     ssh = {
       identityAgent = mkOption {
-        type = types.nullOr types.str;
+        # ssh_config has no escape for a double quote inside a quoted value.
+        type = types.nullOr (types.strMatching ''[^"]*'');
         default = null;
-        example = "~/.1password/agent.sock";
-        description = "IdentityAgent for every host (the `*` block). null leaves ssh-agent alone.";
+        example = "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock";
+        description = "IdentityAgent for every host (the `*` block), unquoted; it is quoted when written, so spaces are fine. null leaves ssh-agent alone.";
       };
       includes = mkOption {
         type = types.listOf types.str;

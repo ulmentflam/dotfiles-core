@@ -40,7 +40,7 @@ out=$(eval_raw '
         dotfiles = {
           git.signing = { key = "ssh-ed25519 AAAAtest"; signer = "/bin/signer"; };
           ssh = {
-            identityAgent = "~/agent.sock";
+            identityAgent = "~/Group Containers/agent.sock";
             hosts."git.example".IdentityFile = [ "~/.ssh/id_example.pub" ];
             publicKeys.id_example = "ssh-ed25519 AAAAtest";
           };
@@ -58,7 +58,7 @@ out=$(eval_raw '
   + "shellenv=${if builtins.match ".*brew shellenv.*" c.programs.zsh.initContent != null then "yes" else "no"}\n"
   + "opt-homebrew-path=${if builtins.match ".*/opt/homebrew/bin:.*" c.programs.zsh.initContent != null then "yes" else "no"}\n"
 ') || fail "option overrides did not evaluate"
-grep -q 'IdentityAgent ~/agent.sock' <<<"$out" || fail "identityAgent missing from ssh config"
+grep -qx '  IdentityAgent "~/Group Containers/agent.sock"' <<<"$out" || fail "identityAgent missing from ssh config, or unquoted (a path with a space must be quoted)"
 grep -q 'Host git.example' <<<"$out" || fail "ssh host block missing"
 grep -q '^signer=/bin/signer$' <<<"$out" || fail "signer not applied"
 grep -q '^pubkey=ssh-ed25519 AAAAtest$' <<<"$out" || fail "public key not written"

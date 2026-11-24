@@ -335,7 +335,10 @@ in
     settings =
       lib.optionalAttrs (cfg.ssh.identityAgent != null) {
         "*" = {
-          IdentityAgent = cfg.ssh.identityAgent;
+          # Quoted: Home Manager writes values verbatim, and agent paths such
+          # as 1Password's "~/Library/Group Containers/..." contain a space,
+          # which would otherwise end the argument there.
+          IdentityAgent = ''"${cfg.ssh.identityAgent}"'';
         };
       }
       // cfg.ssh.hosts;
