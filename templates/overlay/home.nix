@@ -57,10 +57,13 @@ in
         "cursor"
         "ghostty"
         "google-chrome"
-        # Paste and Bartender stand-ins. Maccy gets Paste's Command-Shift-V and
-        # paste-on-select; Thaw needs Accessibility and Screen Recording.
+        # Paste, Bartender and CleanShot X stand-ins. Maccy gets Paste's
+        # Command-Shift-V and paste-on-select; Thaw needs Accessibility and
+        # Screen Recording; MacShot Offline takes Command-Shift-3 and -4 from
+        # macOS and needs Screen Recording.
         "maccy"
         "thaw"
+        "macshot-offline"
         "raycast"
         "slack"
         "visual-studio-code"

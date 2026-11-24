@@ -24,9 +24,11 @@ tv=$(eval_template 'homeConfigurations.work.config.dotfiles.toolVersions')
 brewfile=$(eval_template 'homeConfigurations.work.config.home.file.".config/homebrew/Brewfile".text')
 grep -qx 'cask "ghostty"' <<<"$brewfile" || fail "template Brewfile lacks its casks"
 grep -qx 'cask "cursor"' <<<"$brewfile" || fail "template Brewfile lacks Cursor"
-for cask in maccy thaw; do
+for cask in maccy thaw macshot-offline; do
   grep -qx "cask \"$cask\"" <<<"$brewfile" || fail "template Brewfile lacks $cask"
 done
+eval_template 'homeConfigurations.work.config.home.activation.macshotPreferences.data' | grep -q 'hotkeyKeyCode -int 21' \
+  || fail "template does not give MacShot the screenshot shortcuts"
 eval_template 'homeConfigurations.work.config.home.activation.maccyPreferences.data' | grep -q pasteByDefault \
   || fail "template does not set Maccy's preferences"
 pkgs=$(eval_template 'homeConfigurations.work.config.home.packages' --apply 'ps: builtins.concatStringsSep " " (map (p: p.pname or p.name) ps)')
@@ -38,4 +40,4 @@ grep -qw colima <<<"$pkgs" || fail "template lost colima"
 for app in build build-switch rollback; do
   eval_template "apps.aarch64-darwin.$app.program" >/dev/null || fail "template app $app does not resolve"
 done
-echo "ok: template evaluates as smokeuser; home, .tool-versions, Brewfile (with Cursor), packages (mise; no tor, brev-cli or YubiKey tools) and apps follow"
+echo "ok: template evaluates as smokeuser; home, .tool-versions, Brewfile (with Cursor, Maccy, Thaw, MacShot), packages (mise; no tor, brev-cli or YubiKey tools) and apps follow"

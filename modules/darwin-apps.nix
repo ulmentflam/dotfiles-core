@@ -21,7 +21,12 @@
 # Paste) gets Paste's interaction: Command-Shift-V opens the history and
 # choosing an item pastes it. Thaw (menu bar manager, the maintained Ice fork,
 # the stand-in for Bartender) needs no defaults; grant it Accessibility and
-# Screen Recording on first launch. Keys are written one by one with
+# Screen Recording on first launch. MacShot Offline (screenshots, annotation,
+# scrolling capture, OCR and recording without upload integrations, the
+# stand-in for CleanShot X) takes Command-Shift-4 for area capture and
+# Command-Shift-3 for the full screen, and names files the way CleanShot does.
+# MacShot is sandboxed, but cfprefsd routes a plain `defaults write` of its
+# bundle id into its container. Keys are written one by one with
 # `defaults write`: targets.darwin.defaults uses `defaults import`, which
 # replaces the whole domain and would reset every other setting on each switch.
 #
@@ -51,6 +56,31 @@ let
     ++ map (c: "cask ${quote c}") bf.casks
     ++ [ "" ]
   );
+
+  macshotDomain = "com.sw33tlie.macshot.offline";
+  # symbolichotkeys ID -> the parameters macOS stores: ASCII code, virtual key
+  # code, modifier mask (Command-Shift in the NSEvent form, 1179648).
+  macshotSystemHotkeys = {
+    "28" = [
+      51
+      20
+      1179648
+    ];
+    "30" = [
+      52
+      21
+      1179648
+    ];
+  };
+  hotkeyEntry =
+    parameters:
+    "<dict><key>enabled</key><false/><key>value</key><dict>"
+    + "<key>parameters</key><array>"
+    + lib.concatMapStrings (p: "<integer>${toString p}</integer>") parameters
+    + "</array><key>type</key><string>standard</string></dict></dict>";
+  disableHotkey = id: parameters: ''
+    run /usr/bin/defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys \
+      -dict-add ${id} ${lib.escapeShellArg (hotkeyEntry parameters)}'';
 in
 {
   options.dotfiles.darwin = {
@@ -59,6 +89,26 @@ in
       default = builtins.elem "maccy" bf.casks;
       defaultText = lib.literalMD "`true` when the Brewfile lists the `maccy` cask";
       description = "Give Maccy Paste's shortcut (Command-Shift-V) and paste-on-select.";
+    };
+    macshot = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = builtins.elem "macshot-offline" bf.casks;
+        defaultText = lib.literalMD "`true` when the Brewfile lists the `macshot-offline` cask";
+        description = ''
+          Give MacShot Offline the screenshot shortcuts (Command-Shift-4 for an
+          area, Command-Shift-3 for the screen) and CleanShot-style file names.
+        '';
+      };
+      replaceSystemShortcuts = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Turn off macOS's own Command-Shift-3 and Command-Shift-4, which
+          otherwise claim the keys before MacShot sees them. The Control
+          variants (copy to the clipboard) and Command-Shift-5 stay with macOS.
+        '';
+      };
     };
     touchIdSudo.check = lib.mkOption {
       type = lib.types.bool;
@@ -111,6 +161,39 @@ in
             -string '{"carbonKeyCode":9,"carbonModifiers":768}'
           run /usr/bin/defaults write org.p0deje.Maccy pasteByDefault -bool true
         '';
+      })
+      (lib.mkIf cfg.macshot.enable {
+        home.activation.macshotPreferences = lib.hm.dag.entryAfter [ "writeBoundary" ] (
+          ''
+            # Carbon virtual key codes (kVK_ANSI_4 = 21, kVK_ANSI_3 = 20) and
+            # modifiers (cmdKey | shiftKey = 768), the form MacShot's
+            # HotkeyManager reads. Clearing hotkeyDisabled_<slot> undoes a
+            # "None" chosen in its settings.
+            run /usr/bin/defaults write ${macshotDomain} hotkeyKeyCode -int 21
+            run /usr/bin/defaults write ${macshotDomain} hotkeyModifiers -int 768
+            run /usr/bin/defaults write ${macshotDomain} hotkeyFullScreenKeyCode -int 20
+            run /usr/bin/defaults write ${macshotDomain} hotkeyFullScreenModifiers -int 768
+            run /usr/bin/defaults delete ${macshotDomain} hotkeyDisabled_1 2>/dev/null || true
+            run /usr/bin/defaults delete ${macshotDomain} hotkeyDisabled_2 2>/dev/null || true
+
+            # CleanShot's "Screenshot %t %y-%m-%d at %H.%M.%S". MacShot's {time}
+            # is fixed at HH-mm-ss, and recordings carry no window title.
+            run /usr/bin/defaults write ${macshotDomain} filenameTemplate \
+              -string 'Screenshot {window} {date} at {time}'
+            run /usr/bin/defaults write ${macshotDomain} recordingFilenameTemplate \
+              -string 'Screenshot {date} at {time}'
+          ''
+          + lib.optionalString cfg.macshot.replaceSystemShortcuts ''
+
+            # com.apple.symbolichotkeys 28 (Command-Shift-3, save the screen)
+            # and 30 (Command-Shift-4, save a selection), off. The typed entry
+            # macOS itself writes: the old { enabled = 0; } form stores strings,
+            # which the hotkey loader ignores.
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList disableHotkey macshotSystemHotkeys)}
+            # Reaches the window server, so the keys change without a new login.
+            run /System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u
+          ''
+        );
       })
       (lib.mkIf cfg.touchIdSudo.check {
         home.activation.touchIdSudoCheck = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

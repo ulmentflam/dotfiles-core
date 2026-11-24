@@ -8,7 +8,7 @@ out=$(eval_raw '
     mk = system: (f.homeConfigurations.${system}.extendModules {
       modules = [ ({ pkgs, ... }: {
         dotfiles.darwin = {
-          brewfile = { enable = true; taps = [ "acme/tap" ]; brews = [ "mas" ]; casks = [ "ghostty" "maccy" "slack" "thaw" ]; };
+          brewfile = { enable = true; taps = [ "acme/tap" ]; brews = [ "mas" ]; casks = [ "ghostty" "maccy" "macshot-offline" "slack" "thaw" ]; };
           apps = [ pkgs.hello ];
         };
       }) ];
@@ -23,6 +23,8 @@ out=$(eval_raw '
   + "nbs-runs-bundle=${if builtins.match ".*brew bundle.*" d.programs.zsh.initContent != null then "yes" else "no"}\n"
   + "maccy=${d.home.activation.maccyPreferences.data or "unset"}\n"
   + "touchid-check=${if d.home.activation ? touchIdSudoCheck then "on" else "off"}\n"
+  + "macshot=${d.home.activation.macshotPreferences.data or "unset"}\n"
+  + "macshot-without-cask=${if (f.homeConfigurations.aarch64-darwin.config.home.activation ? macshotPreferences) then "on" else "off"}\n"
   + "maccy-without-cask=${if (f.homeConfigurations.aarch64-darwin.config.home.activation ? maccyPreferences) then "on" else "off"}\n"
   + "linux-brewfile=${if l.home.file ? ".config/homebrew/Brewfile" then "yes" else "no"}\n"
 ') || fail "darwin-apps configuration did not evaluate"
@@ -42,3 +44,16 @@ grep -q 'defaults import' <<<"$out" && fail "Maccy preferences replace the whole
 grep -qx 'maccy-without-cask=off' <<<"$out" || fail "Maccy preferences written without the maccy cask"
 grep -qx 'touchid-check=on' <<<"$out" || fail "no Touch ID sudo check on macOS"
 echo "ok: Brewfile, HOMEBREW_BUNDLE_FILE, copyApps, nbs, Maccy preferences and the Touch ID check wired; Linux untouched"
+# MacShot Offline: Command-Shift-4 area and Command-Shift-3 screen (Carbon key
+# codes 21 and 20, modifiers 768), CleanShot-style names, and macOS's own
+# bindings for those keys (symbolic hotkeys 30 and 28) off, in the typed form
+# the hotkey loader reads, then reloaded.
+grep -q 'com.sw33tlie.macshot.offline hotkeyKeyCode -int 21' <<<"$out" || fail "MacShot area hotkey is not Command-Shift-4"
+grep -q 'com.sw33tlie.macshot.offline hotkeyFullScreenKeyCode -int 20' <<<"$out" || fail "MacShot screen hotkey is not Command-Shift-3"
+grep -q 'com.sw33tlie.macshot.offline hotkeyFullScreenModifiers -int 768' <<<"$out" || fail "MacShot screen hotkey modifiers are not Command-Shift"
+grep -q -- "-string 'Screenshot {window} {date} at {time}'" <<<"$out" || fail "MacShot screenshot names do not follow CleanShot's"
+grep -q -- "-dict-add 28 '<dict><key>enabled</key><false/><key>value</key><dict><key>parameters</key><array><integer>51</integer><integer>20</integer><integer>1179648</integer></array>" <<<"$out" || fail "macOS still owns Command-Shift-3"
+grep -q -- "-dict-add 30 '<dict><key>enabled</key><false/>.*<integer>52</integer><integer>21</integer><integer>1179648</integer>" <<<"$out" || fail "macOS still owns Command-Shift-4"
+grep -q 'activateSettings -u' <<<"$out" || fail "the shortcut change is not reloaded"
+grep -qx 'macshot-without-cask=off' <<<"$out" || fail "MacShot preferences written without the macshot-offline cask"
+echo "ok: MacShot Offline takes Command-Shift-3 and Command-Shift-4 from macOS"

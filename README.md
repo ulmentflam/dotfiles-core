@@ -40,7 +40,11 @@ The template is a single-user Home Manager flake, so it suits a second macOS acc
 - **`dotfiles.darwin.brewfile`** writes `~/.config/homebrew/Brewfile` and points `HOMEBREW_BUNDLE_FILE` at it, so plain `brew bundle` applies it (`nbs` does after each switch). Use this for most GUI apps. Casks install into `/Applications` and keep their own auto-updaters, so browser and chat-client security fixes land when the vendor ships them. A stable path and signature also keep macOS privacy grants (Accessibility, Screen Recording) across updates. Apps that only work from `/Applications`, such as 1Password's browser integration, need it. Nothing is uninstalled, so apps from device management or installed by hand stay put; adopt an existing app with `brew install --cask --adopt <cask>`.
 - **`dotfiles.darwin.apps`** installs nixpkgs packages and copies them into `~/Applications/Home Manager Apps`. They are pinned and roll back with the generation. Prefer vendor-built `-bin` packages: an app nixpkgs compiles is ad-hoc signed and loses its privacy grants on every rebuild.
 
-The template's Brewfile includes Maccy and Thaw, open-source stand-ins for Paste and Bartender. With the `maccy` cask listed, `dotfiles.darwin.maccy.enable` gives Maccy Paste's interaction: Command-Shift-V opens the history and choosing an item pastes it. Each key is written with `defaults write`; Home Manager's `targets.darwin.defaults` would import the whole domain and reset Maccy's other settings. Thaw needs Accessibility and Screen Recording, which macOS asks for on first launch.
+The template's Brewfile includes Maccy, Thaw and MacShot Offline, open-source stand-ins for Paste, Bartender and CleanShot X. Each key is written with `defaults write`; Home Manager's `targets.darwin.defaults` would import the whole domain and reset the app's other settings.
+
+- **Maccy**: with the `maccy` cask listed, `dotfiles.darwin.maccy.enable` gives it Paste's interaction: Command-Shift-V opens the history and choosing an item pastes it.
+- **Thaw** needs Accessibility and Screen Recording, which macOS asks for on first launch.
+- **MacShot Offline** (screenshots, annotation, scrolling capture, OCR and recording, with the upload integrations compiled out): with the `macshot-offline` cask listed, `dotfiles.darwin.macshot.enable` gives it Command-Shift-4 for an area and Command-Shift-3 for the screen, and names files the way CleanShot does (`Screenshot <window> <date> at <time>`). `macshot.replaceSystemShortcuts` turns off macOS's own bindings for those two keys, which would otherwise take them first; the Control variants and Command-Shift-5 stay with macOS. Grant Screen Recording on first launch, and if MacShot was running during the switch, quit and reopen it once.
 
 CLI tools come from Nix either way (`dotfiles.packages.homebrewCli = false`). Drop ones you don't want with `dotfiles.packages.exclude`; a name that matches nothing fails evaluation.
 
@@ -98,7 +102,8 @@ All under `dotfiles.`; see `modules/options.nix` and each module for the full de
 | `toolVersions` | `null` | Writable `.tool-versions` linked at `~/.tool-versions` |
 | `packages.enable`, `.homebrewCli`, `.exclude` | `true`, `false`, `[ ]` | The CLI package list, and names to leave out of it |
 | `darwin.brewfile.*`, `darwin.apps` | off, `[ ]` | macOS GUI apps |
-| `darwin.maccy.enable`, `darwin.touchIdSudo.check` | with the `maccy` cask, `true` | Maccy's Paste-style shortcut; an activation note when Touch ID for sudo is off |
+| `darwin.maccy.enable`, `darwin.macshot.enable` | with the `maccy` / `macshot-offline` cask | Maccy's Paste-style shortcut; MacShot's screenshot shortcuts and file names |
+| `darwin.macshot.replaceSystemShortcuts`, `darwin.touchIdSudo.check` | `true`, `true` | Free Command-Shift-3 and -4 from macOS; an activation note when Touch ID for sudo is off |
 | `ai.skills`, `ai.agents.*` | core skills, TDD agents | What is linked into the AI tools |
 | `ai.docs.prose`, `.extraSections`, `.toolVersionsFile` | empty | The generated instruction file |
 | `ai.opencode.settings` | `{ }` | Defaults merged into `opencode.json` |
