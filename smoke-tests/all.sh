@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Run every smoke test and print a summary. All are eval-only except
-# git-hooks.sh, which runs the hook against a throwaway repository.
+# git-hooks.sh, which runs the hook against a throwaway repository, and
+# about.sh, which runs the rendered `about` function in zsh.
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
-TESTS=(home darwin-apps ai-local-docs ai-skills git-hooks apps template no-personal)
+TESTS=(home about darwin-apps ai-local-docs ai-skills git-hooks apps template no-personal)
 failed=()
 for t in "${TESTS[@]}"; do
   echo "==> [$t]"

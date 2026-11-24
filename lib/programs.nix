@@ -89,7 +89,9 @@ let
       [
         cfg.editor.init
         cfg.zsh.rebuildFunctions
-        (lib.concatStringsSep "\n" cfg.zsh.about.entries)
+        # The entries land inside a single-quoted zsh string: close it, emit
+        # an escaped quote, reopen it.
+        (builtins.replaceStrings [ "'" ] [ "'\\''" ] (lib.concatStringsSep "\n" cfg.zsh.about.entries))
         cfg.zsh.about.extra
         cfg.zsh.about.source
         cfg.zsh.platformInit
