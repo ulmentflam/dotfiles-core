@@ -43,6 +43,9 @@ in
     # Hosts kept out of this repository can live in ~/.ssh/config_external.
     ssh.includes = [ "~/.ssh/config_external" ];
 
+    # Touch ID for sudo: run `nix run .#touchid-sudo` once (it writes
+    # /etc/pam.d/sudo_local, outside Home Manager's reach).
+
     # GUI apps: casks through `brew bundle` (see modules/darwin-apps.nix in
     # dotfiles-core for when to use `darwin.apps` from nixpkgs instead).
     darwin.brewfile = {
@@ -51,8 +54,13 @@ in
         "1password"
         "1password-cli"
         "claude"
+        "cursor"
         "ghostty"
         "google-chrome"
+        # Paste and Bartender stand-ins. Maccy gets Paste's Command-Shift-V and
+        # paste-on-select; Thaw needs Accessibility and Screen Recording.
+        "maccy"
+        "thaw"
         "raycast"
         "slack"
         "visual-studio-code"
@@ -61,6 +69,16 @@ in
     };
     # Docker without Docker Desktop's license: `colima start`, then the docker CLI.
     darwin.apps = [ ];
+
+    # Core CLI packages this machine does without (names as `nix search` shows).
+    # mise is not in this list's reach: programs.mise always installs it.
+    packages.exclude = [
+      "tor"
+      "brev-cli"
+      # YubiKey / FIDO tooling
+      "age-plugin-yubikey"
+      "libfido2"
+    ];
   };
 
   home.packages = with pkgs; [

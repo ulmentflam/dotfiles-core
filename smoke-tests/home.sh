@@ -66,3 +66,27 @@ grep -q '^tool-versions=linked$' <<<"$out" || fail ".tool-versions not linked"
 grep -q '^shellenv=yes$' <<<"$out" || fail "homebrew.enable does not run brew shellenv"
 grep -q '^opt-homebrew-path=yes$' <<<"$out" || fail "homebrew.enable does not put /opt/homebrew/bin on PATH"
 echo "ok: identity, signing, ssh, public keys, .tool-versions and Homebrew PATH all flow from options"
+
+echo
+echo "==> packages.exclude drops a package and refuses an unknown name"
+out=$(eval_raw '
+  let
+    with_ = ex: (f.homeConfigurations.aarch64-darwin.extendModules {
+      modules = [ { dotfiles.packages.exclude = ex; } ];
+    }).config;
+    names = c: map (p: p.pname or (f.inputs.nixpkgs.lib.getName p)) c.home.packages;
+    # Home Manager raises failed assertions when the config is read.
+    failed = c: !(builtins.tryEval (builtins.deepSeq (builtins.filter (a: !a.assertion) c.assertions == [ ]) true)).success
+      || builtins.filter (a: !a.assertion) c.assertions != [ ];
+    b = x: if x then "true" else "false";
+  in
+  "tor-by-default=${b (builtins.elem "tor" (names (with_ [ ])))}\n"
+  + "tor-excluded=${b (!(builtins.elem "tor" (names (with_ [ "tor" ]))))}\n"
+  + "jq-kept=${b (builtins.elem "jq" (names (with_ [ "tor" ])))}\n"
+  + "typo-refused=${b (failed (with_ [ "not-a-package" ]))}\n"
+  + "mise=${b ((with_ [ "tor" ]).programs.mise.enable && builtins.elem "mise" (names (with_ [ "tor" ])))}\n"
+  + "doc-follows=${b (!(builtins.match ".*`tor` - .*" (with_ [ "tor" ]).home.file."CLAUDE.local.md".text != null))}\n"
+') || fail "exclude configurations did not evaluate"
+echo "$out"
+grep -q '=false' <<<"$out" && fail "packages.exclude: $(grep '=false' <<<"$out" | tr '\n' ' ')"
+echo "ok: exclude removes from home.packages and the AI doc; typos fail evaluation; mise stays"

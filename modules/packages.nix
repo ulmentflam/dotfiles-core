@@ -26,12 +26,42 @@ in
         elsewhere. Off, Nix provides them, pinned with everything else.
       '';
     };
+    exclude = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "tor"
+        "whisper-cpp"
+      ];
+      description = ''
+        Package names (pname, as `nix search nixpkgs <name>` shows them) to
+        leave out of the core list. A name that matches nothing is an error,
+        so a typo cannot silently keep the package.
+      '';
+    };
   };
 
-  config.home.packages = lib.mkIf cfg.enable (
-    import ../lib/packages.nix {
+  config = lib.mkIf cfg.enable {
+    assertions =
+      let
+        all = map (p: p.pname or (lib.getName p)) (
+          import ../lib/packages.nix {
+            inherit pkgs;
+            inherit (cfg) homebrewCli;
+          }
+        );
+        unknown = builtins.filter (n: !(builtins.elem n all)) cfg.exclude;
+      in
+      [
+        {
+          assertion = unknown == [ ];
+          message = "dotfiles.packages.exclude names packages the core list does not have: ${toString unknown}";
+        }
+      ];
+
+    home.packages = import ../lib/packages.nix {
       inherit pkgs;
-      inherit (cfg) homebrewCli;
-    }
-  );
+      inherit (cfg) homebrewCli exclude;
+    };
+  };
 }

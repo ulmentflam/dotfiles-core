@@ -236,6 +236,7 @@ in
           import ../lib/packages.nix {
             inherit pkgs;
             homebrewCli = cfg.packages.homebrewCli or false;
+            exclude = cfg.packages.exclude or [ ];
           }
         )
         ++ (cfg.darwin.apps or [ ]);

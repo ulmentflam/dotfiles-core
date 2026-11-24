@@ -17,6 +17,18 @@
 #             `-bin` packages: an app nixpkgs compiles is ad-hoc signed and
 #             loses its privacy grants on every rebuild.
 #
+# App preferences: Maccy (clipboard history, the open-source stand-in for
+# Paste) gets Paste's interaction: Command-Shift-V opens the history and
+# choosing an item pastes it. Thaw (menu bar manager, the maintained Ice fork,
+# the stand-in for Bartender) needs no defaults; grant it Accessibility and
+# Screen Recording on first launch. Keys are written one by one with
+# `defaults write`: targets.darwin.defaults uses `defaults import`, which
+# replaces the whole domain and would reset every other setting on each switch.
+#
+# Touch ID for sudo lives in /etc/pam.d/sudo_local, which Home Manager cannot
+# write. `nix run .#touchid-sudo` (lib.mkHomeApps) writes it once; it survives
+# macOS updates. Activation only reports when it is missing.
+#
 # Activation never runs brew: a cask that fails to upgrade must not fail the
 # Home Manager switch. `nbs` runs `brew bundle` after a successful switch, and
 # nothing here uninstalls, so apps installed by hand or by device management
@@ -42,6 +54,17 @@ let
 in
 {
   options.dotfiles.darwin = {
+    maccy.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = builtins.elem "maccy" bf.casks;
+      defaultText = lib.literalMD "`true` when the Brewfile lists the `maccy` cask";
+      description = "Give Maccy Paste's shortcut (Command-Shift-V) and paste-on-select.";
+    };
+    touchIdSudo.check = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Say at activation when /etc/pam.d/sudo_local does not enable Touch ID for sudo.";
+    };
     apps = lib.mkOption {
       type = lib.types.listOf lib.types.package;
       default = [ ];
@@ -81,6 +104,20 @@ in
         # apps. The two are mutually exclusive.
         targets.darwin.copyApps.enable = true;
         targets.darwin.linkApps.enable = false;
+      })
+      (lib.mkIf cfg.maccy.enable {
+        home.activation.maccyPreferences = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          run /usr/bin/defaults write org.p0deje.Maccy KeyboardShortcuts_popup \
+            -string '{"carbonKeyCode":9,"carbonModifiers":768}'
+          run /usr/bin/defaults write org.p0deje.Maccy pasteByDefault -bool true
+        '';
+      })
+      (lib.mkIf cfg.touchIdSudo.check {
+        home.activation.touchIdSudoCheck = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          if ! /usr/bin/grep -qs '^auth[[:space:]].*pam_tid\.so' /etc/pam.d/sudo_local; then
+            echo "Touch ID for sudo is off. Turn it on once with: nix run ${config.dotfiles.repo.flakeDir}#touchid-sudo"
+          fi
+        '';
       })
       (lib.mkIf bf.enable {
         home.file.${bf.path}.text = brewfileText;

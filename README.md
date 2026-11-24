@@ -17,6 +17,7 @@ nix flake init -t github:ulmentflam/dotfiles-core#overlay
 git init && git add -A
 $EDITOR home.nix            # username, name, email, signing, apps
 nix run .#build-switch      # home-manager switch; conflicting files are kept as *.backup
+nix run .#touchid-sudo      # once, macOS: Touch ID for sudo (writes /etc/pam.d/sudo_local)
 exec zsh
 ```
 
@@ -28,6 +29,7 @@ Your flake holds what is yours: `home.nix`, `.tool-versions`, and its `flake.loc
 | `nb` | Build without switching (`nix run .#build`) |
 | `nfu` / `nfa` | Update the churny inputs / every input, commit `flake.lock` |
 | `about` | List every alias and function |
+| `nix run .#touchid-sudo` | macOS, once: Touch ID for `sudo`, with `pam_reattach` so it works in tmux. Leaves an existing Touch ID setup alone; `--check` only reports |
 
 The template is a single-user Home Manager flake, so it suits a second macOS account or a work machine as well as a personal one: every path derives from `home.username`.
 
@@ -38,7 +40,9 @@ The template is a single-user Home Manager flake, so it suits a second macOS acc
 - **`dotfiles.darwin.brewfile`** writes `~/.config/homebrew/Brewfile` and points `HOMEBREW_BUNDLE_FILE` at it, so plain `brew bundle` applies it (`nbs` does after each switch). Use this for most GUI apps. Casks install into `/Applications` and keep their own auto-updaters, so browser and chat-client security fixes land when the vendor ships them. A stable path and signature also keep macOS privacy grants (Accessibility, Screen Recording) across updates. Apps that only work from `/Applications`, such as 1Password's browser integration, need it. Nothing is uninstalled, so apps from device management or installed by hand stay put; adopt an existing app with `brew install --cask --adopt <cask>`.
 - **`dotfiles.darwin.apps`** installs nixpkgs packages and copies them into `~/Applications/Home Manager Apps`. They are pinned and roll back with the generation. Prefer vendor-built `-bin` packages: an app nixpkgs compiles is ad-hoc signed and loses its privacy grants on every rebuild.
 
-CLI tools come from Nix either way (`dotfiles.packages.homebrewCli = false`).
+The template's Brewfile includes Maccy and Thaw, open-source stand-ins for Paste and Bartender. With the `maccy` cask listed, `dotfiles.darwin.maccy.enable` gives Maccy Paste's interaction: Command-Shift-V opens the history and choosing an item pastes it. Each key is written with `defaults write`; Home Manager's `targets.darwin.defaults` would import the whole domain and reset Maccy's other settings. Thaw needs Accessibility and Screen Recording, which macOS asks for on first launch.
+
+CLI tools come from Nix either way (`dotfiles.packages.homebrewCli = false`). Drop ones you don't want with `dotfiles.packages.exclude`; a name that matches nothing fails evaluation.
 
 ## Use it from nix-darwin or NixOS
 
@@ -92,8 +96,9 @@ All under `dotfiles.`; see `modules/options.nix` and each module for the full de
 | `ssh.identityAgent`, `.includes`, `.hosts`, `.publicKeys` | none | ssh_config and `~/.ssh/*.pub` |
 | `homebrew.enable` | `false` (on with a Brewfile) | Homebrew on PATH, `brew shellenv` |
 | `toolVersions` | `null` | Writable `.tool-versions` linked at `~/.tool-versions` |
-| `packages.enable`, `.homebrewCli` | `true`, `false` | The CLI package list |
+| `packages.enable`, `.homebrewCli`, `.exclude` | `true`, `false`, `[ ]` | The CLI package list, and names to leave out of it |
 | `darwin.brewfile.*`, `darwin.apps` | off, `[ ]` | macOS GUI apps |
+| `darwin.maccy.enable`, `darwin.touchIdSudo.check` | with the `maccy` cask, `true` | Maccy's Paste-style shortcut; an activation note when Touch ID for sudo is off |
 | `ai.skills`, `ai.agents.*` | core skills, TDD agents | What is linked into the AI tools |
 | `ai.docs.prose`, `.extraSections`, `.toolVersionsFile` | empty | The generated instruction file |
 | `ai.opencode.settings` | `{ }` | Defaults merged into `opencode.json` |
