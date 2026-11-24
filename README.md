@@ -124,3 +124,7 @@ gitleaks git .                 # before every push
 ```
 
 `smoke-tests/no-personal.sh` fails on personal identifiers in tracked files and the rendered configuration; add your own to `PERSONAL_PATTERNS` before pushing. A pre-commit hook in `.githooks/` rejects unformatted staged `.nix` files once `modules/git-hooks.nix` points the checkout at it.
+
+## License
+
+MIT, see [LICENSE](./LICENSE). `config/nvim` (NvChad starter) and `skills/demo-gif` keep their own licenses, alongside them.
