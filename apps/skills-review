@@ -1,0 +1,294 @@
+#!/usr/bin/env bash
+# Review third-party agent skills before they are installed.
+#
+#   nix run .#skills-review                     review every source whose lock is unapproved
+#   nix run .#skills-review -- <name>...        review these sources (from modules/skills/sources.nix)
+#   nix run .#skills-review -- --update [name]  bump the inputs first, then review what moved
+#   nix run .#skills-review -- --approve ...    record a passing verdict without asking
+#   nix run .#skills-review -- --scan-only DIR  run only the pattern scan over DIR
+#
+# For each source it fetches the locked revision, runs a deterministic scan for
+# injection and malicious-code patterns, then has Claude audit the skills (the
+# full tree on a first review, the diff since the approved revision after
+# that). The reviewer runs in --safe-mode with only Read, Grep and Glob, so the
+# content it reads can neither load as skills nor act through tools. A pass is
+# written to modules/skills/reviews.json, the file the build checks;
+# the full report goes to reviews/<name>.md. A fail records nothing.
+set -euo pipefail
+
+MODEL=${SKILLS_REVIEW_MODEL:-opus}
+UPDATE=0
+APPROVE=0
+SCAN_ONLY=""
+NAMES=()
+
+die() {
+  echo >&2 "skills-review: $*"
+  exit 1
+}
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --update) UPDATE=1 ;;
+    --approve) APPROVE=1 ;;
+    --scan-only)
+      SCAN_ONLY=${2:?--scan-only needs a directory}
+      shift
+      ;;
+    --model)
+      MODEL=${2:?--model needs a name}
+      shift
+      ;;
+    -h | --help)
+      sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    -*) die "unknown option $1" ;;
+    *) NAMES+=("$1") ;;
+  esac
+  shift
+done
+
+# Prints one hit per line: "<category>\t<file>:<line>: <text>". Leads for the
+# reviewer, not verdicts: a docs page mentioning ~/.ssh is fine, a script
+# reading it is not.
+scan() {
+  local root=$1
+  (
+    cd "$root"
+    # hits <category> <pattern> [extra grep options]
+    hits() {
+      local category=$1 pattern=$2
+      shift 2
+      grep -rnI "$@" -E "$pattern" . 2>/dev/null \
+        | cut -c1-240 \
+        | sed "s|^\./||; s|^|$category\t|" || true
+    }
+    hits remote-exec '(curl|wget)[^|#]*\|[[:space:]]*(sudo[[:space:]]+)?(ba|z|da)?sh\b|Invoke-Expression|\biex\b|base64[[:space:]]+(-d|--decode)|atob\(|fromCharCode'
+    hits dynamic-exec '\beval[[:space:]]*\(|\bexec[[:space:]]*\(|new Function\(|child_process|os\.system|subprocess\.|pty\.spawn'
+    hits network '\b(curl|wget|nc|ncat|socat)\b|fetch\(|XMLHttpRequest|requests\.(get|post|put)|urllib|http\.request|https?\.get\(|net\.connect|socket\.' '--exclude=*.md'
+    hits credentials '\.ssh/|id_(rsa|ed25519)|\.aws/|\.config/gh|\.netrc|keychain|security (find|dump)|\bop (read|item|signin)|_TOKEN\b|_API_KEY\b|\.env\b|\.claude/(projects|settings)|\.codex/|\.gemini/'
+    hits persistence 'launchctl|LaunchAgents|LaunchDaemons|crontab|systemctl|\.(zsh|bash)rc|\.profile\b|git config --global|core\.hooksPath|\bsudo\b'
+    hits agent-config 'settings(\.local)?\.json|hooks\.json|mcp(\.json|Servers)|allowedTools|dangerously|--no-verify|bypassPermissions|permission-mode'
+    hits injection 'ignore (all |any )?(the )?(previous|prior|above|earlier) (instructions|prompts|messages)|disregard (all|any|the|previous|prior)|(do not|don.t|never) (tell|inform|mention|reveal|show)[^.]{0,40}user|without (telling|asking|informing|notifying) the user|you are now|pre-?approved|(skip|bypass) (the )?(review|audit|security)|system prompt|<!--' -i
+    hits destructive 'rm -rf|mkfs|dd if=|chmod (-R )?777|git push (-f|--force)|reset --hard'
+    hits bind-all '0\.0\.0\.0|INADDR_ANY|host:[[:space:]]*["'\'']?::'
+    # Zero-width, bidi-control, word-joiner, BOM and Unicode tag characters.
+    find . -type f -print0 | xargs -0 perl -CSD -ne '
+      if (/([\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2060}-\x{2064}\x{2066}-\x{2069}\x{FEFF}\x{E0000}-\x{E007F}])/) {
+        my $c = ord $1;
+        (my $f = $ARGV) =~ s{^\./}{};
+        printf "hidden-unicode\t%s:%d: U+%04X\n", $f, $., $c;
+      }
+      close ARGV if eof;' 2>/dev/null || true
+    find . -type l | sed 's|^\./||; s|^|symlink\t|' | while IFS= read -r line; do
+      printf '%s -> %s\n' "$line" "$(readlink "${line#symlink	}")"
+    done
+    find . -type f -print0 | xargs -0 grep -LI . 2>/dev/null | sed 's|^\./||; s|^|binary\t|' || true
+    find . -type f -perm -u+x | sed 's|^\./||; s|^|executable\t|'
+  ) | sort -u
+}
+
+if [[ -n $SCAN_ONLY ]]; then
+  [[ -d $SCAN_ONLY ]] || die "$SCAN_ONLY is not a directory"
+  scan "$SCAN_ONLY"
+  exit 0
+fi
+
+for tool in nix jq perl diff claude; do
+  command -v "$tool" >/dev/null || die "$tool is not on PATH"
+done
+
+# The checkout to read sources from and write reviews into. The app itself runs
+# from a read-only store copy, so it cannot use its own location: use the
+# current directory or the git checkout around it, whichever holds
+# modules/skills/sources.nix.
+if [[ -f modules/skills/sources.nix ]]; then
+  REPO=$PWD
+elif top=$(git rev-parse --show-toplevel 2>/dev/null) && [[ -f $top/modules/skills/sources.nix ]]; then
+  REPO=$top
+else
+  die "no modules/skills/sources.nix here; run from the dotfiles-core checkout"
+fi
+SKILLS=$REPO/modules/skills
+REVIEWS=$SKILLS/reviews.json
+mkdir -p "$SKILLS/reviews"
+
+SOURCES=$(nix eval --json --file "$SKILLS/sources.nix")
+if [[ ${#NAMES[@]} -eq 0 ]]; then
+  while IFS= read -r name; do NAMES+=("$name"); done < <(jq -r 'keys[]' <<<"$SOURCES")
+fi
+for name in "${NAMES[@]}"; do
+  jq -e --arg n "$name" 'has($n)' <<<"$SOURCES" >/dev/null || die "$name is not in skills/sources.nix"
+done
+
+if [[ $UPDATE -eq 1 ]]; then
+  nix flake update --flake "$REPO" "${NAMES[@]}"
+fi
+
+LOCK=$(nix flake metadata --json "$REPO" 2>/dev/null)
+CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/skills-review
+
+# "<url>" for a locked node, pinned to its revision.
+pinned_url() {
+  jq -r '
+    if .type == "github" then "github:\(.owner)/\(.repo)/\(.rev)"
+    elif .type == "git" then "git+\(.url)?rev=\(.rev)"
+    else error("unsupported input type \(.type)") end'
+}
+
+# Skill directory names under <root>, minus excludes.
+skills_in() {
+  local root=$1 exclude=$2
+  [[ -d $root ]] || return 0
+  for dir in "$root"/*/; do
+    local skill
+    skill=$(basename "$dir")
+    [[ -f $dir/SKILL.md ]] || continue
+    jq -e --arg s "$skill" 'index($s) == null' <<<"$exclude" >/dev/null && echo "$skill"
+  done
+}
+
+SCHEMA='{"type":"object","additionalProperties":false,"required":["verdict","summary","findings"],"properties":{"verdict":{"enum":["pass","fail"]},"summary":{"type":"string"},"findings":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["severity","category","location","detail"],"properties":{"severity":{"enum":["high","medium","low","info"]},"category":{"type":"string"},"location":{"type":"string"},"detail":{"type":"string"}}}}}}'
+
+status=0
+for name in "${NAMES[@]}"; do
+  node=$(jq -r --arg n "$name" '.locks.nodes.root.inputs[$n] // empty' <<<"$LOCK")
+  [[ -n $node ]] || die "$name has no flake input in flake.lock; declare it in flake.nix and run nix flake lock"
+  locked=$(jq --arg k "$node" '.locks.nodes[$k].locked' <<<"$LOCK")
+  rev=$(jq -r .rev <<<"$locked")
+  narHash=$(jq -r .narHash <<<"$locked")
+  url=$(pinned_url <<<"$locked")
+  spec=$(jq --arg n "$name" '.[$n]' <<<"$SOURCES")
+  subdir=$(jq -r '.dir // "."' <<<"$spec")
+  exclude=$(jq -c '.exclude // []' <<<"$spec")
+  prior=$(jq --arg n "$name" '.[$n] // {}' "$REVIEWS")
+
+  echo "==> $name at ${rev:0:12}"
+  if jq -e --arg h "$narHash" '.verdict == "pass" and .narHash == $h' <<<"$prior" >/dev/null; then
+    echo "already approved"
+    continue
+  fi
+
+  new=$(nix flake prefetch --json "$url" | jq -r .storePath)
+  [[ $(nix hash path --type sha256 --sri "$new") == "$narHash" ]] || die "$name: fetched content does not match the lock's narHash"
+  root=$new/$subdir
+  scope=()
+  while IFS= read -r skill; do scope+=("$skill"); done < <(skills_in "$root" "$exclude")
+  [[ ${#scope[@]} -gt 0 ]] || die "$name: no skills (directories with SKILL.md) under $subdir"
+
+  ctx=$CACHE/$name-${rev:0:12}
+  rm -rf "$ctx"
+  mkdir -p "$ctx/new"
+  for skill in "${scope[@]}"; do
+    cp -R "$root/$skill" "$ctx/new/"
+  done
+  chmod -R u+w "$ctx/new"
+  (cd "$ctx/new" && find . -type f -print0 | xargs -0 perl -e '
+    for (sort @ARGV) { my @s = stat; (my $f = $_) =~ s{^\./}{}; printf "%04o %8d %s\n", $s[2] & 07777, $s[7], $f }') >"$ctx/files.txt"
+  scan "$ctx/new" >"$ctx/scan.txt"
+
+  # Diff against the approved revision, over the skills either side installs.
+  oldRev=$(jq -r '.rev // empty' <<<"$prior")
+  first=1
+  if [[ -n $oldRev && $(jq -r '.verdict // empty' <<<"$prior") == pass ]]; then
+    first=0
+    oldUrl=$(jq --arg r "$oldRev" '.rev = $r' <<<"$locked" | pinned_url)
+    old=$(nix flake prefetch --json "$oldUrl" | jq -r .storePath)
+    mkdir -p "$ctx/old"
+    while IFS= read -r skill; do
+      cp -R "$old/$subdir/$skill" "$ctx/old/"
+    done < <(skills_in "$old/$subdir" "$exclude")
+    chmod -R u+w "$ctx/old"
+    (cd "$ctx" && diff -ruN old new >diff.patch) || true
+  fi
+
+  report=$SKILLS/reviews/$name.md
+  if [[ $first -eq 0 && ! -s $ctx/diff.patch ]]; then
+    echo "no change to installed files since ${oldRev:0:12}"
+    result='{"verdict":"pass","summary":"No installed file changed since the approved revision; only content outside the installed skills moved.","findings":[]}'
+    reviewer=unchanged
+  else
+    echo "scan: $(wc -l <"$ctx/scan.txt" | tr -d ' ') leads; reviewing ${#scope[@]} skills with $MODEL"
+    if [[ $first -eq 1 ]]; then
+      task="This is a first review: read every file under $ctx/new."
+      context="scan.txt, files.txt"
+    else
+      task="The approved revision was $oldRev. Read all of $ctx/diff.patch, and any unchanged file it depends on."
+      context="scan.txt, files.txt, diff.patch"
+    fi
+    prompt="Review the third-party skill source \`$name\` ($url) for installation.
+Skills in scope, one directory each under $ctx/new: ${scope[*]}.
+Context directory: $ctx ($context).
+$task
+Return the structured verdict."
+    raw=$(cd "$ctx/new" && claude -p "$prompt" \
+      --safe-mode \
+      --tools Read,Grep,Glob \
+      --strict-mcp-config \
+      --no-session-persistence \
+      --model "$MODEL" \
+      --add-dir "$ctx" \
+      --append-system-prompt "$(cat "$SKILLS/review-prompt.md")" \
+      --output-format json \
+      --json-schema "$SCHEMA") || die "$name: the reviewer failed to run"
+    result=$(jq -c '.structured_output // (.result | fromjson)' <<<"$raw") || die "$name: the reviewer returned no verdict"
+    reviewer="claude --safe-mode ($MODEL)"
+  fi
+
+  verdict=$(jq -r .verdict <<<"$result")
+  # A high finding fails the review whatever verdict accompanies it.
+  if jq -e 'any(.findings[]; .severity == "high")' <<<"$result" >/dev/null; then
+    verdict=fail
+  fi
+  {
+    echo "# Skill review: $name"
+    echo
+    echo "- Source: \`$url\`"
+    echo "- narHash: \`$narHash\`"
+    echo "- Skills: ${scope[*]}"
+    echo "- Reviewed: $(date -u +%Y-%m-%dT%H:%MZ) by $reviewer"
+    echo "- Scope: $([[ $first -eq 1 ]] && echo 'full tree (first review)' || echo "diff since ${oldRev:0:12}")"
+    echo "- Scan leads: $(wc -l <"$ctx/scan.txt" | tr -d ' ')"
+    echo "- Verdict: **$verdict**"
+    echo
+    jq -r '.summary' <<<"$result"
+    echo
+    jq -r 'if (.findings | length) == 0 then "No findings." else
+      "| Severity | Category | Location | Detail |\n|---|---|---|---|\n" +
+      (.findings | sort_by({"high":0,"medium":1,"low":2,"info":3}[.severity])
+        | map("| \(.severity) | \(.category) | `\(.location)` | \(.detail | gsub("\\|"; "\\\\|") | gsub("\n"; " ")) |")
+        | join("\n")) end' <<<"$result"
+  } >"$report"
+  cat "$report"
+  echo
+
+  if [[ $verdict != pass ]]; then
+    echo >&2 "$name FAILED review; nothing recorded. The build keeps refusing this lock."
+    status=1
+    continue
+  fi
+  if [[ $APPROVE -eq 0 ]]; then
+    if [[ -t 0 ]]; then
+      read -r -p "Record approval of $name at ${rev:0:12}? [y/N] " answer
+      [[ $answer == [yY]* ]] || {
+        echo "not recorded"
+        status=1
+        continue
+      }
+    else
+      echo >&2 "$name passed; rerun with --approve to record it (no terminal to ask on)."
+      status=1
+      continue
+    fi
+  fi
+  tmp=$(mktemp "$REVIEWS.XXXXXX")
+  jq --arg n "$name" --arg rev "$rev" --arg h "$narHash" --arg url "$url" \
+    --arg at "$(date -u +%Y-%m-%dT%H:%MZ)" --arg by "$reviewer" \
+    --argjson counts "$(jq '.findings | group_by(.severity) | map({(.[0].severity): length}) | add // {}' <<<"$result")" \
+    '.[$n] = {rev: $rev, narHash: $h, url: $url, verdict: "pass", reviewedAt: $at, reviewer: $by, findings: $counts}' \
+    "$REVIEWS" >"$tmp"
+  mv "$tmp" "$REVIEWS"
+  echo "recorded: $name at ${rev:0:12}"
+done
+exit $status

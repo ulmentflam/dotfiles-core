@@ -1,0 +1,25 @@
+{
+  "modular-skills": {
+    "rev": "d6000ab8766edeffc273b2d73efe7701397ecd8b",
+    "narHash": "sha256-vrGczCYr/v0XdcYcJweV+Cp19CjPyBUGjuOrNIHtkD8=",
+    "url": "github:modular/skills/d6000ab8766edeffc273b2d73efe7701397ecd8b",
+    "verdict": "pass",
+    "reviewedAt": "2026-11-14T14:34Z",
+    "reviewer": "claude --safe-mode (opus)",
+    "findings": {
+      "info": 7
+    }
+  },
+  "superpowers": {
+    "rev": "22f0b463e7a5e579904dd6211a520321035526f7",
+    "narHash": "sha256-rP5YsyGuPd9YSW/Fj3aukrq1bLuV+nwwQMK4JaZQgkI=",
+    "url": "github:obra/superpowers/22f0b463e7a5e579904dd6211a520321035526f7",
+    "verdict": "pass",
+    "reviewedAt": "2026-11-13T18:09Z",
+    "reviewer": "claude --safe-mode (opus)",
+    "findings": {
+      "info": 8,
+      "low": 1
+    }
+  }
+}

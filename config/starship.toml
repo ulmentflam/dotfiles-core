@@ -1,0 +1,130 @@
+"$schema" = 'https://starship.rs/config-schema.json'
+
+format = """
+[](color_dir)$os$directory[](fg:color_dir bg:color_vcs)$git_branch$git_status[](fg:color_vcs bg:color_env)$docker_context[ ](fg:color_env)$line_break$character"""
+
+right_format = """$python$nodejs$rust$golang$java$c$cpp$pixi $time $cmd_duration"""
+
+palette = 'everforest_dark'
+
+[palettes.everforest_dark]
+color_fg     = '#d3c6aa'
+color_bg     = '#2d353b'
+color_os     = '#475258'
+color_dir    = '#374247'
+color_vcs    = '#a7c080'
+color_lang   = '#7fbbb3'
+color_env    = '#475258'
+color_time   = '#343f44'
+color_green  = '#a7c080'
+color_red    = '#e67e80'
+color_yellow = '#dbbc7f'
+color_purple = '#d699b6'
+
+[os]
+disabled = false
+style = "bg:color_dir fg:color_fg"
+format = "[$symbol]($style)"
+
+[os.symbols]
+Macos = "󰀵"
+Linux = "󰌽"
+Ubuntu = "󰕈"
+Arch = "󰣇"
+Debian = "󰣚"
+Fedora = "󰣛"
+
+[username]
+show_always = false
+style_user = "bg:color_dir fg:color_fg"
+style_root = "bg:color_dir fg:color_fg"
+format = '[ $user ]($style)'
+
+[directory]
+style = "fg:color_fg bg:color_dir"
+format = "[  $path ](fg:color_green bg:color_dir)"
+truncation_length = 3
+truncation_symbol = "…/"
+read_only = " 󰌾"
+
+[git_branch]
+symbol = "  "
+style = "bg:color_vcs"
+format = '[[ $symbol$branch ](fg:color_bg bg:color_vcs)]($style)'
+
+[git_status]
+style = "bg:color_vcs"
+format = '[[($all_status$ahead_behind )](fg:color_bg bg:color_vcs)]($style)'
+ahead = "⇡$count"
+behind = "⇣$count"
+diverged = "⇡$ahead_count⇣$behind_count"
+staged = "+$count"
+modified = "!$count"
+untracked = "?$count"
+stashed = ""
+conflicted = "~$count"
+deleted = "✘$count"
+
+[python]
+symbol = " "
+style = "bg:color_lang"
+format = '[$symbol($virtualenv)](fg:color_green)'
+
+[nodejs]
+symbol = " "
+style = "bg:color_lang"
+format = '[$symbol](fg:color_green)'
+
+[rust]
+symbol = " "
+style = "bg:color_lang"
+format = '[$symbol](fg:color_green)'
+
+[golang]
+symbol = " "
+style = "bg:color_lang"
+format = '[$symbol](fg:color_green)'
+
+[java]
+symbol = " "
+style = "bg:color_lang"
+format = '[$symbol](fg:color_green)'
+
+[c]
+symbol = " "
+style = "bg:color_lang"
+format = '[$symbol](fg:color_green)'
+
+[cpp]
+symbol = " "
+style = "bg:color_lang"
+format = '[$symbol](fg:color_green)'
+
+[pixi]
+symbol = " "
+style = "bg:color_env"
+format = '[$symbol($environment)](fg:color_green)'
+
+[docker_context]
+symbol = " "
+style = "bg:color_env"
+format = '[[ $symbol($context) ](fg:color_fg bg:color_env)]($style)'
+
+[cmd_duration]
+min_time = 2000
+style = "bg:color_time"
+format = '[ $duration](fg:color_yellow)'
+
+[time]
+disabled = false
+time_format = "%R"
+style = "bg:color_time"
+format = '[ $time](fg:color_fg)'
+
+[line_break]
+disabled = false
+
+[character]
+disabled = false
+success_symbol = '[❯](bold fg:color_green)'
+error_symbol = '[❯](bold fg:color_red)'

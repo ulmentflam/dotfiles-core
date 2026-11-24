@@ -1,0 +1,21 @@
+# conda reads ~/.config/conda/condarc (symlinked by modules/shared/files.nix).
+# conda is the miniforge cask on macOS and nixpkgs' conda-shell on Linux; it
+# is a fallback for projects that insist on it, and pixi is the default.
+
+channels:
+  - conda-forge
+channel_priority: strict
+# Linux's Miniconda base condarc lists `defaults` (Anaconda's licensed
+# channel). Resolve that alias to conda-forge so it is never contacted.
+default_channels:
+  - https://conda.anaconda.org/conda-forge
+
+# No base env on PATH, so mise's python stays the default interpreter.
+auto_activate: false
+
+# Keep envs and the package cache out of the base install: a cask upgrade or
+# `cleanup = "uninstall"` deletes /opt/homebrew/Caskroom/miniforge/base.
+envs_dirs:
+  - ~/.conda/envs
+pkgs_dirs:
+  - ~/.conda/pkgs

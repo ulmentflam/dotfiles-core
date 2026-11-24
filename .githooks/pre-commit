@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# modules/git-hooks.nix installs this by pointing core.hooksPath at .githooks/.
+# Edit it here, not in .git/hooks/.
+#
+# Rejects a commit when a staged .nix file is not nixfmt-clean, so the tree
+# stays at the RFC 166 formatting the repo was swept to. Checks the *staged*
+# content rather than the worktree, because that is what actually gets
+# committed: a file fixed on disk but not re-added should still fail.
+#
+# Bypass with `git commit --no-verify` when you need to.
+
+set -uo pipefail
+
+# nixfmt comes from lib/packages.nix. On a fresh clone that hasn't been
+# switched yet it won't exist. Warn loudly and let the commit through rather
+# than bricking every commit on a half-provisioned machine: the check is a
+# guardrail, not a gate that should block bootstrap.
+if ! command -v nixfmt >/dev/null 2>&1; then
+  echo "pre-commit: nixfmt not on PATH; skipping the Nix format check." >&2
+  echo "            Switch to a dotfiles-core generation to install it, or run nix develop." >&2
+  exit 0
+fi
+
+# --diff-filter=ACM: added/copied/modified only, so a staged *deletion* doesn't
+# get looked up in the index and fail.
+staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.nix')
+
+[ -z "$staged" ] && exit 0
+
+unformatted=()
+while IFS= read -r file; do
+  [ -n "$file" ] || continue
+  if ! git show ":$file" | nixfmt --check - >/dev/null 2>&1; then
+    unformatted+=("$file")
+  fi
+done <<<"$staged"
+
+if [ ${#unformatted[@]} -gt 0 ]; then
+  echo "pre-commit: these staged Nix files are not nixfmt-clean:" >&2
+  printf '  %s\n' "${unformatted[@]}" >&2
+  echo >&2
+  echo "Fix and re-stage:" >&2
+  printf '  nixfmt %s && git add %s\n' "${unformatted[*]}" "${unformatted[*]}" >&2
+  echo >&2
+  echo "Or bypass: git commit --no-verify" >&2
+  exit 1
+fi
+
+exit 0
