@@ -100,6 +100,38 @@ in
           area, Command-Shift-3 for the screen) and CleanShot-style file names.
         '';
       };
+      directory = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = "Desktop/screenshots";
+        description = ''
+          Save folder, relative to the home directory (CleanShot X's export
+          path by default); null leaves MacShot's own choice alone. MacShot is
+          sandboxed and writes only where it holds a bookmark the user granted,
+          so its first save opens a folder panel already pointing here: choose
+          it once.
+        '';
+      };
+      filenames = lib.mkOption {
+        type = lib.types.attrsOf lib.types.str;
+        default = {
+          # CleanShot X's "Screenshot %t - %a %y-%m-%d at %H.%M.%S" with its
+          # @2x Retina suffix. MacShot saves at full Retina resolution
+          # (downscaleRetina off), but cannot tell a 1x display apart, so a
+          # capture there is labelled @2x too.
+          filenameTemplate = "Screenshot {window} - {app} {yyyy}-{MM}-{dd} at {HH}.{mm}.{ss}@2x";
+          # Used instead when no app is known (a whole-display capture), the
+          # way CleanShot drops " - %a".
+          filenameTemplateNoApp = "Screenshot {window} {yyyy}-{MM}-{dd} at {HH}.{mm}.{ss}@2x";
+          # Recordings carry no window title, and CleanShot adds no @2x to them.
+          recordingFilenameTemplate = "Screenshot {app} {yyyy}-{MM}-{dd} at {HH}.{mm}.{ss}";
+          recordingFilenameTemplateNoApp = "Screenshot {yyyy}-{MM}-{dd} at {HH}.{mm}.{ss}";
+        };
+        description = ''
+          MacShot's file-name templates, by preference key ({window}, {app},
+          {yyyy} {MM} {dd} {HH} {mm} {ss} and others; a / starts a subfolder).
+          The defaults reproduce CleanShot X's names.
+        '';
+      };
       replaceSystemShortcuts = lib.mkOption {
         type = lib.types.bool;
         default = true;
@@ -176,12 +208,25 @@ in
             run /usr/bin/defaults delete ${macshotDomain} hotkeyDisabled_1 2>/dev/null || true
             run /usr/bin/defaults delete ${macshotDomain} hotkeyDisabled_2 2>/dev/null || true
 
-            # CleanShot's "Screenshot %t %y-%m-%d at %H.%M.%S". MacShot's {time}
-            # is fixed at HH-mm-ss, and recordings carry no window title.
-            run /usr/bin/defaults write ${macshotDomain} filenameTemplate \
-              -string 'Screenshot {window} {date} at {time}'
-            run /usr/bin/defaults write ${macshotDomain} recordingFilenameTemplate \
-              -string 'Screenshot {date} at {time}'
+            ${lib.concatStringsSep "\n" (
+              lib.mapAttrsToList (
+                key: template:
+                "run /usr/bin/defaults write ${macshotDomain} ${key} -string ${lib.escapeShellArg template}"
+              ) cfg.macshot.filenames
+            )}
+          ''
+          + lib.optionalString (cfg.macshot.directory != null) ''
+
+            # The folder, as the path MacShot shows and offers in its folder
+            # panel. Its saves go through a security-scoped bookmark only the
+            # app can create, so when the path changes, drop a bookmark for
+            # the old folder: MacShot then asks once, starting here.
+            want=${lib.escapeShellArg "${config.home.homeDirectory}/${cfg.macshot.directory}"}
+            run mkdir -p "$want"
+            if [ "$(/usr/bin/defaults read ${macshotDomain} saveDirectory 2>/dev/null)" != "$want" ]; then
+              run /usr/bin/defaults write ${macshotDomain} saveDirectory -string "$want"
+              run /usr/bin/defaults delete ${macshotDomain} saveDirectoryBookmark 2>/dev/null || true
+            fi
           ''
           + lib.optionalString cfg.macshot.replaceSystemShortcuts ''
 

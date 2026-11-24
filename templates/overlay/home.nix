@@ -60,7 +60,8 @@ in
         # Paste, Bartender and CleanShot X stand-ins. Maccy gets Paste's
         # Command-Shift-V and paste-on-select; Thaw needs Accessibility and
         # Screen Recording; MacShot Offline takes Command-Shift-3 and -4 from
-        # macOS and needs Screen Recording.
+        # macOS, saves to ~/Desktop/screenshots with CleanShot X's names, and
+        # needs Screen Recording (choose the folder once on its first save).
         "maccy"
         "thaw"
         "macshot-offline"

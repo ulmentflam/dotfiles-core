@@ -51,7 +51,14 @@ echo "ok: Brewfile, HOMEBREW_BUNDLE_FILE, copyApps, nbs, Maccy preferences and t
 grep -q 'com.sw33tlie.macshot.offline hotkeyKeyCode -int 21' <<<"$out" || fail "MacShot area hotkey is not Command-Shift-4"
 grep -q 'com.sw33tlie.macshot.offline hotkeyFullScreenKeyCode -int 20' <<<"$out" || fail "MacShot screen hotkey is not Command-Shift-3"
 grep -q 'com.sw33tlie.macshot.offline hotkeyFullScreenModifiers -int 768' <<<"$out" || fail "MacShot screen hotkey modifiers are not Command-Shift"
-grep -q -- "-string 'Screenshot {window} {date} at {time}'" <<<"$out" || fail "MacShot screenshot names do not follow CleanShot's"
+# CleanShot's "Screenshot %t - %a %y-%m-%d at %H.%M.%S" with its @2x suffix,
+# saved to ~/Desktop/screenshots like CleanShot's exportPath.
+grep -q -- "filenameTemplate -string 'Screenshot {window} - {app} {yyyy}-{MM}-{dd} at {HH}.{mm}.{ss}@2x'" <<<"$out" || fail "MacShot screenshot names do not follow CleanShot's"
+grep -q -- "filenameTemplateNoApp -string 'Screenshot {window} {yyyy}-{MM}-{dd} at {HH}.{mm}.{ss}@2x'" <<<"$out" || fail "MacShot names without an app do not drop ' - <app>'"
+grep -q -- "recordingFilenameTemplate -string 'Screenshot {app} {yyyy}-{MM}-{dd} at {HH}.{mm}.{ss}'" <<<"$out" || fail "MacShot recording names do not follow CleanShot's"
+grep -q -- "recordingFilenameTemplateNoApp -string 'Screenshot {yyyy}-{MM}-{dd} at {HH}.{mm}.{ss}'" <<<"$out" || fail "MacShot recording names without an app are not set"
+grep -q 'want=/Users/example/Desktop/screenshots' <<<"$out" || fail "MacShot does not save to ~/Desktop/screenshots"
+grep -q 'saveDirectoryBookmark' <<<"$out" || fail "a bookmark for another folder is not cleared when the folder changes"
 grep -q -- "-dict-add 28 '<dict><key>enabled</key><false/><key>value</key><dict><key>parameters</key><array><integer>51</integer><integer>20</integer><integer>1179648</integer></array>" <<<"$out" || fail "macOS still owns Command-Shift-3"
 grep -q -- "-dict-add 30 '<dict><key>enabled</key><false/>.*<integer>52</integer><integer>21</integer><integer>1179648</integer>" <<<"$out" || fail "macOS still owns Command-Shift-4"
 grep -q 'activateSettings -u' <<<"$out" || fail "the shortcut change is not reloaded"

@@ -44,7 +44,7 @@ The template's Brewfile includes Maccy, Thaw and MacShot Offline, open-source st
 
 - **Maccy**: with the `maccy` cask listed, `dotfiles.darwin.maccy.enable` gives it Paste's interaction: Command-Shift-V opens the history and choosing an item pastes it.
 - **Thaw** needs Accessibility and Screen Recording, which macOS asks for on first launch.
-- **MacShot Offline** (screenshots, annotation, scrolling capture, OCR and recording, with the upload integrations compiled out): with the `macshot-offline` cask listed, `dotfiles.darwin.macshot.enable` gives it Command-Shift-4 for an area and Command-Shift-3 for the screen, and names files the way CleanShot does (`Screenshot <window> <date> at <time>`). `macshot.replaceSystemShortcuts` turns off macOS's own bindings for those two keys, which would otherwise take them first; the Control variants and Command-Shift-5 stay with macOS. Grant Screen Recording on first launch, and if MacShot was running during the switch, quit and reopen it once.
+- **MacShot Offline** (screenshots, annotation, scrolling capture, OCR and recording, with the upload integrations compiled out): with the `macshot-offline` cask listed, `dotfiles.darwin.macshot.enable` gives it Command-Shift-4 for an area and Command-Shift-3 for the screen, and saves where and as CleanShot X does: into `~/Desktop/screenshots` (`macshot.directory`), named `Screenshot <window> - <app> 2026-11-24 at 14.05.09@2x.png`, without ` - <app>` when no app is known (`macshot.filenames`). MacShot is sandboxed and can only write to a folder you granted it, so its first save opens a folder panel already on that folder; choose it once. The `@2x` is fixed text: MacShot saves Retina captures at full resolution but cannot tell a 1x display apart. `macshot.replaceSystemShortcuts` turns off macOS's own bindings for those two keys, which would otherwise take them first; the Control variants and Command-Shift-5 stay with macOS. Grant Screen Recording on first launch, and if MacShot was running during the switch, quit and reopen it once.
 
 CLI tools come from Nix either way (`dotfiles.packages.homebrewCli = false`). Drop ones you don't want with `dotfiles.packages.exclude`; a name that matches nothing fails evaluation.
 
@@ -103,6 +103,7 @@ All under `dotfiles.`; see `modules/options.nix` and each module for the full de
 | `packages.enable`, `.homebrewCli`, `.exclude` | `true`, `false`, `[ ]` | The CLI package list, and names to leave out of it |
 | `darwin.brewfile.*`, `darwin.apps` | off, `[ ]` | macOS GUI apps |
 | `darwin.maccy.enable`, `darwin.macshot.enable` | with the `maccy` / `macshot-offline` cask | Maccy's Paste-style shortcut; MacShot's screenshot shortcuts and file names |
+| `darwin.macshot.directory`, `.filenames` | `Desktop/screenshots`, CleanShot X's names | Where MacShot saves and what it names files |
 | `darwin.macshot.replaceSystemShortcuts`, `darwin.touchIdSudo.check` | `true`, `true` | Free Command-Shift-3 and -4 from macOS; an activation note when Touch ID for sudo is off |
 | `ai.skills`, `ai.agents.*` | core skills, TDD agents | What is linked into the AI tools |
 | `ai.docs.prose`, `.extraSections`, `.toolVersionsFile` | empty | The generated instruction file |
